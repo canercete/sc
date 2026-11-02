@@ -91,8 +91,9 @@
           durum.textContent = once ? 'Program yeniden hazırlanıyor…' : 'İlk açılış hazırlanıyor…';
           return indir().then(function (h3) {
             try { localStorage.setItem('sc_kabuk_t', String(Date.now())); } catch (e) {}
-            durum.textContent = 'Hazır ✓';
-            return Promise.all([idbYaz(h3), cYaz(h3)]).then(function () { return new Promise(function (ok) { setTimeout(ok, 350); }); }).then(function () { goster(h3); });
+            idbYaz(h3); cYaz(h3);   // kayıt arkada sürer; açılış beklemez
+            durum.textContent = 'Açılıyor…'; cubukYaz(1, 0);
+            requestAnimationFrame(function () { setTimeout(function () { goster(h3); }, 0); });   // %100 ekrana yansısın, sonra hemen aç
           });
         });
       }).catch(function () { eskiYol(); });
