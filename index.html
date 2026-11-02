@@ -19,11 +19,17 @@
   #acilis img { width: min(80vw, 380px); height: auto; }
   #acilis p { margin: 0; font-size: 14px; color: #94a3b8; }
   #acilis.gizli { opacity: 0; pointer-events: none; }
+  #cubuk { width: min(70vw, 280px); height: 8px; border-radius: 99px; background: rgba(148, 163, 184, .18); overflow: hidden; opacity: 0; transition: opacity .3s; }
+  #cubuk.acik { opacity: 1; }
+  #cubuk i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #a8761d, #e9c46a, #fff1b8, #e9c46a, #a8761d); background-size: 200% 100%; animation: akis 1.4s linear infinite; transition: width .35s ease-out; box-shadow: 0 0 12px rgba(233, 196, 106, .5); }
+  @keyframes akis { to { background-position: -200% 0; } }
+  #yuzde { margin: 0; font-size: 12px; color: #64748b; min-height: 16px; font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { #cubuk i { animation: none; transition: none; } }
   .kutu { max-width: 340px; padding: 0 20px; text-align: center; line-height: 1.5; font-size: 14px; }
 </style>
 </head>
 <body>
-<div id="acilis"><img src="logo-acilis.png" alt="SC İletişim · Mevsim İletişim"><p id="durum">Yükleniyor…</p></div>
+<div id="acilis"><img src="logo-acilis.png" alt="SC İletişim · Mevsim İletişim"><p id="durum">Yükleniyor…</p><div id="cubuk"><i></i></div><p id="yuzde"></p></div>
 <iframe id="uyg" title="SC İletişim" allow="camera; microphone; clipboard-read; clipboard-write; geolocation; fullscreen"></iframe>
 <script>
   /* ↓↓↓ Yalnız bu satırı değiştirin: Apps Script › Dağıt › Dağıtımları yönet › Web uygulaması URL'si (…/exec ile biter) ↓↓↓ */
@@ -37,7 +43,8 @@
     }
     /* V389 Anında açılış: program (Index.html) bu telefonda saklanır ve buradan anında açılır; Google'dan yalnız veri gelir.
        Yeni sürüm dağıtılınca program kendini arkada yeniler. Herhangi bir sorunda eski yöntemle (Google çerçevesi) açılır. */
-    var durum = document.getElementById('durum');
+    var durum = document.getElementById('durum'), cubuk = document.getElementById('cubuk'), yuzde = document.getElementById('yuzde');
+    function cubukYaz(k, by) { cubuk.firstChild.style.width = Math.round(k * 100) + '%'; yuzde.textContent = '%' + Math.round(k * 100); }
     function eskiYol() {
       var hk = ''; try { hk = localStorage.getItem('sc_hk') || ''; } catch (e) {}
       window.addEventListener('message', function (ev) {
@@ -64,8 +71,12 @@
       return fetch(UYGULAMA + (UYGULAMA.indexOf('?') < 0 ? '?' : '&') + 'raw=1', { cache: 'no-store' }).then(function (r) {
         if (!r.ok || !/text\/plain/.test(r.headers.get('content-type') || '')) throw new Error('eski sunucu');
         if (!r.body || !r.body.getReader || !window.TextDecoder) return r.text();
-        var rd = r.body.getReader(), dc = new TextDecoder(), parca = '', kb = 0;
-        return (function oku() { return rd.read().then(function (x) { if (x.done) return parca + dc.decode(); kb += x.value.length; parca += dc.decode(x.value, { stream: true }); durum.textContent = 'İlk açılış hazırlanıyor… ' + Math.round(kb / 1024) + ' KB'; return oku(); }); })();
+        var rd = r.body.getReader(), dc = new TextDecoder(), parca = '', by = 0, top = +(r.headers.get('content-length') || 0);
+        if (!top) { try { top = +localStorage.getItem('sc_kabuk_boy') || 0; } catch (e) {} } if (!top) top = 1900000;   // Google boyut bildirmezse son indirilen boyut tahmin edilir
+        cubuk.className = 'acik';
+        return (function oku() { return rd.read().then(function (x) {
+          if (x.done) { cubukYaz(1, by); try { localStorage.setItem('sc_kabuk_boy', String(by)); } catch (e) {} return parca + dc.decode(); }
+          by += x.value.length; parca += dc.decode(x.value, { stream: true }); cubukYaz(Math.min(.97, by / top), by); return oku(); }); })();
       }).then(function (h) { if (!gecerli(h)) throw new Error('beklenmeyen'); return h; });
     }
     var hizliKapali = false; try { hizliKapali = localStorage.getItem('sc_hizli') === '0'; } catch (e) {}
@@ -80,7 +91,8 @@
           durum.textContent = once ? 'Program yeniden hazırlanıyor…' : 'İlk açılış hazırlanıyor…';
           return indir().then(function (h3) {
             try { localStorage.setItem('sc_kabuk_t', String(Date.now())); } catch (e) {}
-            return Promise.all([idbYaz(h3), cYaz(h3)]).then(function () { goster(h3); });
+            durum.textContent = 'Hazır ✓';
+            return Promise.all([idbYaz(h3), cYaz(h3)]).then(function () { return new Promise(function (ok) { setTimeout(ok, 350); }); }).then(function () { goster(h3); });
           });
         });
       }).catch(function () { eskiYol(); });
