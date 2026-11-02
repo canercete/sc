@@ -35,17 +35,43 @@
       document.getElementById('durum').outerHTML = "<div class='kutu'><b>Kurulum tamamlanmadı.</b><br>index.html dosyasındaki <b>UYGULAMA</b> satırına web uygulamasının …/exec ile biten adresini yapıştırın.</div>";
       return;
     }
-    f.onload = function () { setTimeout(function () { ac.className = 'gizli'; }, 400); };
-    setTimeout(function () { ac.className = 'gizli'; }, 8000);   // yavaş bağlantıda da açılış ekranı takılı kalmasın
-    /* Kalıcı oturum: uygulama, "Beni hatırla" anahtarını bu sayfaya bildirir; burada saklanır ve her açılışta adrese eklenir.
-       Böylece telefon uygulamayı kapatsa da yeniden giriş istenmez. Uygulamada Çıkış deyince anahtar buradan da silinir. */
-    var hk = ''; try { hk = localStorage.getItem('sc_hk') || ''; } catch (e) {}
-    window.addEventListener('message', function (ev) {
-      if (!/^https:\/\/([\w-]+\.)*(googleusercontent\.com|script\.google\.com)$/.test(ev.origin) || !ev.data || typeof ev.data.sc_hk !== 'string') return;
-      try { if (ev.data.sc_hk) localStorage.setItem('sc_hk', ev.data.sc_hk); else localStorage.removeItem('sc_hk'); } catch (e) {}
-      try { ev.source.postMessage({ sc_ack: 1 }, ev.origin); } catch (e2) {}
-    });
-    f.src = UYGULAMA + (hk ? (UYGULAMA.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(hk) : '');
+    /* V389 Anında açılış: program (Index.html) bu telefonda saklanır ve buradan anında açılır; Google'dan yalnız veri gelir.
+       Yeni sürüm dağıtılınca program kendini arkada yeniler. Herhangi bir sorunda eski yöntemle (Google çerçevesi) açılır. */
+    var durum = document.getElementById('durum');
+    function eskiYol() {
+      var hk = ''; try { hk = localStorage.getItem('sc_hk') || ''; } catch (e) {}
+      window.addEventListener('message', function (ev) {
+        if (!/^https:\/\/([\w-]+\.)*(googleusercontent\.com|script\.google\.com)$/.test(ev.origin) || !ev.data || typeof ev.data.sc_hk !== 'string') return;
+        try { if (ev.data.sc_hk) localStorage.setItem('sc_hk', ev.data.sc_hk); else localStorage.removeItem('sc_hk'); } catch (e) {}
+        try { ev.source.postMessage({ sc_ack: 1 }, ev.origin); } catch (e2) {}
+      });
+      f.onload = function () { setTimeout(function () { ac.className = 'gizli'; }, 400); };
+      setTimeout(function () { ac.className = 'gizli'; }, 8000);
+      f.src = UYGULAMA + (hk ? (UYGULAMA.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(hk) : '');
+    }
+    function goster(h) {
+      h = h.replace('/*VITRIN_MODU*/', function () { return 'window.DIS_MOD=1;window.EXEC_URL=' + JSON.stringify(UYGULAMA) + ';'; });
+      document.open(); document.write(h); document.close();
+    }
+    function indir() {
+      return fetch(UYGULAMA + (UYGULAMA.indexOf('?') < 0 ? '?' : '&') + 'raw=1', { cache: 'no-store' }).then(function (r) {
+        if (!r.ok || !/text\/plain/.test(r.headers.get('content-type') || '')) throw new Error('eski sunucu');
+        return r.text();
+      }).then(function (h) { if (h.indexOf('/*VITRIN_MODU*/') < 0 || h.indexOf('var SURUM_C') < 0) throw new Error('beklenmeyen'); return h; });
+    }
+    var hizliKapali = false; try { hizliKapali = localStorage.getItem('sc_hizli') === '0'; } catch (e) {}
+    if (hizliKapali || !window.caches || !window.fetch) { eskiYol(); }
+    else {
+      caches.open('sc-kabuk').then(function (c) {
+        return c.match('kabuk').then(function (r) { return r ? r.text() : null; }).then(function (h) {
+          if (h && h.indexOf('/*VITRIN_MODU*/') > -1) { goster(h); return; }
+          durum.textContent = 'İlk açılış hazırlanıyor…';
+          return indir().then(function (h2) {
+            return c.put('kabuk', new Response(h2, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } })).then(function () { goster(h2); });
+          });
+        });
+      }).catch(function () { eskiYol(); });
+    }
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
   })();
 </script>
