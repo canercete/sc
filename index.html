@@ -56,6 +56,12 @@
       setTimeout(function () { ac.className = 'gizli'; }, 8000);
       f.src = UYGULAMA + (hk ? (UYGULAMA.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(hk) : '');
     }
+    function hizliGoster(h) {   // kayıtlı kopyadan açılış: çubuk kısa sürede dolar, sonra açılır
+      durum.textContent = 'Açılıyor…'; cubuk.className = 'acik';
+      var t0 = performance.now(), SURE = 550;
+      (function adim(t) { var k = Math.min(1, (t - t0) / SURE), e = 1 - Math.pow(1 - k, 2); cubuk.firstChild.style.transition = 'none'; cubukYaz(e, 0);
+        if (k < 1) requestAnimationFrame(adim); else setTimeout(function () { goster(h); }, 40); })(t0);
+    }
     function goster(h) {
       h = h.replace('/*VITRIN_MODU*/', function () { return 'window.DIS_MOD=1;window.EXEC_URL=' + JSON.stringify(UYGULAMA) + ';'; });
       document.open(); document.write(h); document.close();
@@ -84,9 +90,9 @@
     if (hizliKapali || !window.fetch || (!window.indexedDB && !window.caches)) { eskiYol(); }
     else {
       idbOku().then(function (h) {
-        if (gecerli(h)) { goster(h); return; }
+        if (gecerli(h)) { hizliGoster(h); return; }
         return cOku().then(function (h2) {
-          if (gecerli(h2)) { idbYaz(h2); goster(h2); return; }
+          if (gecerli(h2)) { idbYaz(h2); hizliGoster(h2); return; }
           var once = false; try { once = !!localStorage.getItem('sc_kabuk_t'); if (once) localStorage.setItem('sc_kabuk_kayip', String((+localStorage.getItem('sc_kabuk_kayip') || 0) + 1)); } catch (e) {}
           durum.textContent = once ? 'Program yeniden hazırlanıyor…' : 'İlk açılış hazırlanıyor…';
           return indir().then(function (h3) {
