@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SC İletişim</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SC İletişim">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#0b1220">
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1220; color: #e2e8f0; font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  iframe { position: fixed; top: env(safe-area-inset-top, 0); left: 0; width: 100%; height: calc(100% - env(safe-area-inset-top, 0px)); border: 0; background: #0b1220; }
+  #acilis { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; z-index: 2; background: #0b1220; transition: opacity .3s; }
+  #acilis img { width: min(80vw, 380px); height: auto; }
+  #acilis p { margin: 0; font-size: 14px; color: #94a3b8; }
+  #acilis.gizli { opacity: 0; pointer-events: none; }
+  .kutu { max-width: 340px; padding: 0 20px; text-align: center; line-height: 1.5; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="acilis"><img src="logo-acilis.png" alt="SC İletişim · Mevsim İletişim"><p id="durum">Yükleniyor…</p></div>
+<iframe id="uyg" title="SC İletişim" allow="camera; microphone; clipboard-read; clipboard-write; geolocation; fullscreen"></iframe>
+<script>
+  /* ↓↓↓ Yalnız bu satırı değiştirin: Apps Script › Dağıt › Dağıtımları yönet › Web uygulaması URL'si (…/exec ile biter) ↓↓↓ */
+  var UYGULAMA = 'BURAYA_WEB_UYGULAMASI_ADRESINI_YAPISTIRIN';
+  /* ↑↑↑ */
+  (function () {
+    var ac = document.getElementById('acilis'), f = document.getElementById('uyg');
+    if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(UYGULAMA)) {
+      document.getElementById('durum').outerHTML = "<div class='kutu'><b>Kurulum tamamlanmadı.</b><br>index.html dosyasındaki <b>UYGULAMA</b> satırına web uygulamasının …/exec ile biten adresini yapıştırın.</div>";
+      return;
+    }
+    f.onload = function () { setTimeout(function () { ac.className = 'gizli'; }, 400); };
+    setTimeout(function () { ac.className = 'gizli'; }, 8000);   // yavaş bağlantıda da açılış ekranı takılı kalmasın
+    /* Kalıcı oturum: uygulama, "Beni hatırla" anahtarını bu sayfaya bildirir; burada saklanır ve her açılışta adrese eklenir.
+       Böylece telefon uygulamayı kapatsa da yeniden giriş istenmez. Uygulamada Çıkış deyince anahtar buradan da silinir. */
+    var hk = ''; try { hk = localStorage.getItem('sc_hk') || ''; } catch (e) {}
+    window.addEventListener('message', function (ev) {
+      if (!/^https:\/\/([\w-]+\.)*(googleusercontent\.com|script\.google\.com)$/.test(ev.origin) || !ev.data || typeof ev.data.sc_hk !== 'string') return;
+      try { if (ev.data.sc_hk) localStorage.setItem('sc_hk', ev.data.sc_hk); else localStorage.removeItem('sc_hk'); } catch (e) {}
+      try { ev.source.postMessage({ sc_ack: 1 }, ev.origin); } catch (e2) {}
+    });
+    f.src = UYGULAMA + (hk ? (UYGULAMA.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(hk) : '');
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+  })();
+</script>
+</body>
+</html>
