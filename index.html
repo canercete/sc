@@ -53,21 +53,34 @@
       h = h.replace('/*VITRIN_MODU*/', function () { return 'window.DIS_MOD=1;window.EXEC_URL=' + JSON.stringify(UYGULAMA) + ';'; });
       document.open(); document.write(h); document.close();
     }
+    /* V392: kopya iki yerde saklanır (IndexedDB + Cache); biri silinse diğerinden açılır. Tarayıcıdan kalıcı depolama izni istenir. */
+    function idb() { return new Promise(function (ok, no) { try { var r = indexedDB.open('sc-kabuk', 1); r.onupgradeneeded = function () { r.result.createObjectStore('k'); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { no(r.error); }; } catch (e) { no(e); } }); }
+    function idbOku() { return idb().then(function (db) { return new Promise(function (ok) { var q = db.transaction('k', 'readonly').objectStore('k').get('kabuk'); q.onsuccess = function () { ok(q.result || null); }; q.onerror = function () { ok(null); }; }); }).catch(function () { return null; }); }
+    function idbYaz(h) { return idb().then(function (db) { return new Promise(function (ok) { var tx = db.transaction('k', 'readwrite'); tx.objectStore('k').put(h, 'kabuk'); tx.oncomplete = function () { ok(true); }; tx.onerror = function () { ok(false); }; }); }).catch(function () { return false; }); }
+    function cOku() { if (!window.caches) return Promise.resolve(null); return caches.open('sc-kabuk').then(function (c) { return c.match('kabuk'); }).then(function (r) { return r ? r.text() : null; }).catch(function () { return null; }); }
+    function cYaz(h) { if (!window.caches) return Promise.resolve(false); return caches.open('sc-kabuk').then(function (c) { return c.put('kabuk', new Response(h, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } })); }).then(function () { return true; }).catch(function () { return false; }); }
+    function gecerli(h) { return !!h && h.indexOf('/*VITRIN_MODU*/') > -1 && h.indexOf('var SURUM_C') > -1; }
     function indir() {
       return fetch(UYGULAMA + (UYGULAMA.indexOf('?') < 0 ? '?' : '&') + 'raw=1', { cache: 'no-store' }).then(function (r) {
         if (!r.ok || !/text\/plain/.test(r.headers.get('content-type') || '')) throw new Error('eski sunucu');
-        return r.text();
-      }).then(function (h) { if (h.indexOf('/*VITRIN_MODU*/') < 0 || h.indexOf('var SURUM_C') < 0) throw new Error('beklenmeyen'); return h; });
+        if (!r.body || !r.body.getReader || !window.TextDecoder) return r.text();
+        var rd = r.body.getReader(), dc = new TextDecoder(), parca = '', kb = 0;
+        return (function oku() { return rd.read().then(function (x) { if (x.done) return parca + dc.decode(); kb += x.value.length; parca += dc.decode(x.value, { stream: true }); durum.textContent = 'İlk açılış hazırlanıyor… ' + Math.round(kb / 1024) + ' KB'; return oku(); }); })();
+      }).then(function (h) { if (!gecerli(h)) throw new Error('beklenmeyen'); return h; });
     }
     var hizliKapali = false; try { hizliKapali = localStorage.getItem('sc_hizli') === '0'; } catch (e) {}
-    if (hizliKapali || !window.caches || !window.fetch) { eskiYol(); }
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+    if (hizliKapali || !window.fetch || (!window.indexedDB && !window.caches)) { eskiYol(); }
     else {
-      caches.open('sc-kabuk').then(function (c) {
-        return c.match('kabuk').then(function (r) { return r ? r.text() : null; }).then(function (h) {
-          if (h && h.indexOf('/*VITRIN_MODU*/') > -1) { goster(h); return; }
-          durum.textContent = 'İlk açılış hazırlanıyor…';
-          return indir().then(function (h2) {
-            return c.put('kabuk', new Response(h2, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } })).then(function () { goster(h2); });
+      idbOku().then(function (h) {
+        if (gecerli(h)) { goster(h); return; }
+        return cOku().then(function (h2) {
+          if (gecerli(h2)) { idbYaz(h2); goster(h2); return; }
+          var once = false; try { once = !!localStorage.getItem('sc_kabuk_t'); if (once) localStorage.setItem('sc_kabuk_kayip', String((+localStorage.getItem('sc_kabuk_kayip') || 0) + 1)); } catch (e) {}
+          durum.textContent = once ? 'Program yeniden hazırlanıyor…' : 'İlk açılış hazırlanıyor…';
+          return indir().then(function (h3) {
+            try { localStorage.setItem('sc_kabuk_t', String(Date.now())); } catch (e) {}
+            return Promise.all([idbYaz(h3), cYaz(h3)]).then(function () { goster(h3); });
           });
         });
       }).catch(function () { eskiYol(); });
