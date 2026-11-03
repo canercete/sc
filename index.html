@@ -62,6 +62,14 @@
       (function adim(t) { var k = Math.min(1, (t - t0) / SURE), e = 1 - Math.pow(1 - k, 2); cubuk.firstChild.style.transition = 'none'; cubukYaz(e, 0);
         if (k < 1) requestAnimationFrame(adim); else setTimeout(function () { goster(h); }, 40); })(t0);
     }
+    function appYaz(h) {   // program, app.html olarak açılabilsin diye hazır (ayarları işlenmiş) haliyle saklanır
+      if (!window.caches) return Promise.resolve(false);
+      var x = h.replace('/*VITRIN_MODU*/', function () { return 'window.DIS_MOD=1;window.EXEC_URL=' + JSON.stringify(UYGULAMA) + ';'; });
+      return caches.open('sc-kabuk').then(function (c) { return c.put('app', new Response(x, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })); })
+        .then(function () { try { localStorage.setItem('sc_app_hazir', '1'); } catch (e) {} return true; }).catch(function () { return false; });
+    }
+    function swHazir() { return !!(navigator.serviceWorker && navigator.serviceWorker.controller); }
+    function gec() { cubuk.className = 'acik'; cubuk.firstChild.style.transition = 'width 1.2s cubic-bezier(.2,.7,.2,1)'; requestAnimationFrame(function () { cubuk.firstChild.style.width = '92%'; }); durum.textContent = 'Açılıyor…'; location.replace('app.html'); }
     function kaynakYaz(k) { try { localStorage.setItem('sc_acilis_k', k); } catch (e) {} }   // program açılış süresini “Hız ölçümü”ne yazar
     function goster(h) {
       h = h.replace('/*VITRIN_MODU*/', function () { return 'window.DIS_MOD=1;window.EXEC_URL=' + JSON.stringify(UYGULAMA) + ';'; });
@@ -88,17 +96,21 @@
     }
     var hizliKapali = false; try { hizliKapali = localStorage.getItem('sc_hizli') === '0'; } catch (e) {}
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
-    if (hizliKapali || !window.fetch || (!window.indexedDB && !window.caches)) { eskiYol(); }
+    var yok = /[?&]yok=1/.test(location.search), hazir = false;
+    try { if (yok) { localStorage.removeItem('sc_app_hazir'); history.replaceState(null, '', location.pathname); } hazir = localStorage.getItem('sc_app_hazir') === '1'; } catch (e) {}
+    if (!hizliKapali && hazir && swHazir()) { kaynakYaz('kayıtlı kopya'); gec(); }   // en hızlı yol: program doğrudan telefondaki kopyadan, akarak açılır
+    else if (hizliKapali || !window.fetch || (!window.indexedDB && !window.caches)) { eskiYol(); }
     else {
       idbOku().then(function (h) {
-        if (gecerli(h)) { kaynakYaz('kayıtlı kopya'); hizliGoster(h); return; }
+        if (gecerli(h)) { kaynakYaz('kayıtlı kopya'); if (swHazir()) { appYaz(h).then(function (ok) { if (ok) gec(); else hizliGoster(h); }); return; } hizliGoster(h); return; }
         return cOku().then(function (h2) {
-          if (gecerli(h2)) { kaynakYaz('kayıtlı kopya (2. depo)'); idbYaz(h2); hizliGoster(h2); return; }
+          if (gecerli(h2)) { kaynakYaz('kayıtlı kopya (2. depo)'); idbYaz(h2); if (swHazir()) { appYaz(h2).then(function (ok) { if (ok) gec(); else hizliGoster(h2); }); return; } hizliGoster(h2); return; }
           var once = false; try { once = !!localStorage.getItem('sc_kabuk_t'); if (once) localStorage.setItem('sc_kabuk_kayip', String((+localStorage.getItem('sc_kabuk_kayip') || 0) + 1)); } catch (e) {}
           durum.textContent = once ? 'Program yeniden hazırlanıyor…' : 'İlk açılış hazırlanıyor…';
           return indir().then(function (h3) {
             try { localStorage.setItem('sc_kabuk_t', String(Date.now())); } catch (e) {}
             kaynakYaz(once ? 'YENİDEN İNDİRİLDİ (kopya kaybolmuş)' : 'ilk indirme'); idbYaz(h3); cYaz(h3);   // kayıt arkada sürer; açılış beklemez
+            if (swHazir()) { durum.textContent = 'Açılıyor…'; cubukYaz(1, 0); return appYaz(h3).then(function (ok) { if (ok) location.replace('app.html'); else goster(h3); }); }
             durum.textContent = 'Açılıyor…'; cubukYaz(1, 0);
             requestAnimationFrame(function () { setTimeout(function () { goster(h3); }, 0); });   // %100 ekrana yansısın, sonra hemen aç
           });
