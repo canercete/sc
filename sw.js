@@ -25,3 +25,20 @@ self.addEventListener('fetch', function (e) {
     });
   }));
 });
+/* V478: uygulama bildirimi — sunucu (Firebase) gönderir, telefon burada gösterir. Başka uygulama gerekmez. */
+self.addEventListener('push', function (e) {
+  var d = {};
+  try { var j = e.data ? e.data.json() : {}; d = j.data || (j.notification ? { t: j.notification.title, b: j.notification.body } : j) || {}; }
+  catch (x) { d = { t: 'SC İletişim', b: e.data ? e.data.text() : '' }; }
+  var opt = { body: d.b || '', icon: 'apple-touch-icon.png', badge: 'favicon-32.png', data: { u: d.u || self.registration.scope } };
+  if (d.g) { opt.tag = d.g + '-' + Date.now(); }
+  e.waitUntil(self.registration.showNotification(d.t || 'SC İletişim', opt));
+});
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var hedef = (e.notification.data && e.notification.data.u) || self.registration.scope;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (l) {
+    for (var i = 0; i < l.length; i++) { if (l[i].url.indexOf(self.registration.scope) === 0 && 'focus' in l[i]) return l[i].focus(); }
+    return self.clients.openWindow ? self.clients.openWindow(hedef) : null;
+  }));
+});
